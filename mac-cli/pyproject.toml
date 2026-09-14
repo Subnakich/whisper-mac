@@ -1,0 +1,28 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "whisper-mac-cli"
+version = "0.1.0"
+description = "Apple Silicon CLI for local MLX Whisper transcription and pyannote diarization"
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+  "pyannote.audio==4.0.7",
+  "imageio-ffmpeg>=0.6,<0.7",
+  "soundfile>=0.13,<0.14",
+]
+
+[project.scripts]
+whisper-mac = "whisper_mac_cli.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/whisper_mac_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+
+[project.optional-dependencies]
+mac = ["mlx-whisper==0.4.3"]
+test = ["pytest>=8.3,<9"]

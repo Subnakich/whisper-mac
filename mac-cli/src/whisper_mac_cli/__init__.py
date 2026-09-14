@@ -1,0 +1,3 @@
+"""Local speech-to-text for Apple Silicon."""
+
+__version__ = "0.1.0"
