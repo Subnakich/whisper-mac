@@ -14,6 +14,7 @@ from .core import (
     QUALITY_FASTER_WHISPER_MODEL,
     environment_token,
     process_file,
+    report_progress,
 )
 
 
@@ -88,6 +89,11 @@ def build_parser() -> argparse.ArgumentParser:
         help="служебный файл с найденными голосами для приложения",
     )
     parser.add_argument(
+        "--avoid-overwrite",
+        action="store_true",
+        help="добавлять номер к имени результата вместо перезаписи существующих файлов",
+    )
+    parser.add_argument(
         "--format",
         dest="formats",
         action="append",
@@ -113,7 +119,15 @@ def main(argv: list[str] | None = None) -> int:
     asr_model = MODEL_ALIASES[backend].get(args.model, args.model)
     formats = set(args.formats or ("txt", "md", "json", "srt", "vtt"))
     failed = False
-    for source in args.files:
+    total_files = len(args.files)
+    for index, source in enumerate(args.files, 1):
+        report_progress(
+            "file_started",
+            0.0,
+            file_index=index,
+            total_files=total_files,
+            file_name=source.name,
+        )
         print(f"→ {source}", file=sys.stderr)
         try:
             paths = process_file(
@@ -132,12 +146,28 @@ def main(argv: list[str] | None = None) -> int:
                 diarization_device=args.diarization_device,
                 speaker_profiles=args.speaker_profiles,
                 session_result=args.session_result,
+                avoid_overwrite=args.avoid_overwrite,
             )
             for path in paths:
                 print(f"  ✓ {path}", file=sys.stderr)
+            report_progress(
+                "file_completed",
+                1.0,
+                file_index=index,
+                total_files=total_files,
+                file_name=source.name,
+            )
         except Exception as exc:
             failed = True
             print(f"  ✗ {exc}", file=sys.stderr)
+            report_progress(
+                "file_failed",
+                1.0,
+                file_index=index,
+                total_files=total_files,
+                file_name=source.name,
+                message=str(exc),
+            )
     return 1 if failed else 0
 
 

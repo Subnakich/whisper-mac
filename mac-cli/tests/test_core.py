@@ -5,6 +5,7 @@ from whisper_mac_cli.core import (
     Turn,
     Word,
     assign_speakers,
+    available_output_base,
     ffmpeg_executable,
     format_timestamp,
     make_utterances,
@@ -13,6 +14,7 @@ from whisper_mac_cli.core import (
     transcribe_mlx,
 )
 from whisper_mac_cli.cli import MODEL_ALIASES
+from whisper_mac_cli import cli
 
 
 def test_assigns_words_and_splits_on_speaker_change():
@@ -126,3 +128,37 @@ def test_same_profile_is_not_assigned_to_two_speakers():
     )
 
     assert len(matches) == 1
+
+
+def test_batch_output_name_does_not_overwrite_existing_file(tmp_path):
+    base = tmp_path / "meeting"
+    base.with_suffix(".md").write_text("existing", encoding="utf-8")
+
+    assert available_output_base(base, {"md", "txt"}).name == "meeting-2"
+
+
+def test_batch_output_name_uses_next_free_number(tmp_path):
+    base = tmp_path / "meeting"
+    base.with_suffix(".txt").write_text("existing", encoding="utf-8")
+    base.with_name("meeting-2").with_suffix(".md").write_text("existing", encoding="utf-8")
+
+    assert available_output_base(base, {"md", "txt"}).name == "meeting-3"
+
+
+def test_cli_processes_multiple_files_in_order(monkeypatch, tmp_path):
+    sources = [tmp_path / "first.m4a", tmp_path / "second.wav"]
+    processed = []
+
+    def fake_process_file(source, **kwargs):
+        processed.append((source, kwargs["avoid_overwrite"]))
+        return []
+
+    monkeypatch.setattr(cli, "process_file", fake_process_file)
+
+    result = cli.main(
+        ["--backend", "mlx", "--no-diarize", "--avoid-overwrite", "--"]
+        + [str(source) for source in sources]
+    )
+
+    assert result == 0
+    assert processed == [(sources[0], True), (sources[1], True)]

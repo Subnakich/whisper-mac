@@ -1,6 +1,7 @@
 import AppKit
 import Security
 import SwiftUI
+import UniformTypeIdentifiers
 
 private enum KeychainToken {
     static let service = "com.whispermac.app"
@@ -83,6 +84,11 @@ final class RuntimeController: ObservableObject {
     @Published var modelAccessRequired = false
     @Published var errorDetails = ""
     @Published var log = ""
+    @Published var batchCurrentIndex = 0
+    @Published var batchTotalFiles = 0
+    @Published var batchCompletedFiles = 0
+    @Published var batchFailedFiles = 0
+    @Published var batchCurrentName = ""
     @Published fileprivate var detectedSpeakers: [DetectedSpeaker] = []
     @Published fileprivate var voiceProfiles: [VoiceProfile] = []
 
@@ -209,6 +215,12 @@ final class RuntimeController: ObservableObject {
         return String(format: "%d:%02d", minutes, seconds)
     }
 
+    var overallProgress: Double {
+        guard batchTotalFiles > 1 else { return progress }
+        let finishedBeforeCurrent = max(0, batchCurrentIndex - 1)
+        return min(1, (Double(finishedBeforeCurrent) + progress) / Double(batchTotalFiles))
+    }
+
     private func begin(_ title: String, detail: String = "") {
         running = true
         status = title
@@ -216,6 +228,11 @@ final class RuntimeController: ObservableObject {
         progress = 0
         elapsedSeconds = 0
         recognitionSpeed = nil
+        batchCurrentIndex = 0
+        batchTotalFiles = 0
+        batchCompletedFiles = 0
+        batchFailedFiles = 0
+        batchCurrentName = ""
         cancelRequested = false
         hasError = false
         modelAccessRequired = false
@@ -348,6 +365,18 @@ final class RuntimeController: ObservableObject {
             let reportedProgress = (event["progress"] as? NSNumber)?.doubleValue ?? self.progress
             self.progress = reportedProgress
             switch stage {
+            case "file_started":
+                self.batchCurrentIndex = (event["file_index"] as? NSNumber)?.intValue ?? 1
+                self.batchTotalFiles = (event["total_files"] as? NSNumber)?.intValue ?? 1
+                self.batchCurrentName = event["file_name"] as? String ?? ""
+                self.progress = 0
+                self.recognitionSpeed = nil
+            case "file_completed":
+                self.batchCompletedFiles += 1
+                self.progress = 1
+            case "file_failed":
+                self.batchFailedFiles += 1
+                self.progress = 1
             case "preparing":
                 self.status = "Подготавливаем запись"
                 self.detail = "Проверяем файл"
@@ -599,24 +628,30 @@ print("Модели готовы")
         }
     }
 
-    func transcribe(input: URL, output: URL, arguments: [String], token: String) {
-        guard isInstalled, !running else { return }
+    func transcribe(inputs: [URL], output: URL, arguments: [String], token: String) {
+        guard isInstalled, !running, !inputs.isEmpty else { return }
         detectedSpeakers = []
-        begin("Начинаем расшифровку…")
+        begin(inputs.count == 1 ? "Начинаем расшифровку…" : "Готовим очередь файлов…")
         DispatchQueue.global(qos: .userInitiated).async {
             do {
                 try? FileManager.default.removeItem(at: self.sessionURL)
-                var args = ["-m", "whisper_mac_cli.cli", input.path, "--backend", "mlx", "--output-dir", output.path]
+                var args = ["-m", "whisper_mac_cli.cli", "--backend", "mlx", "--output-dir", output.path]
                 args += [
                     "--speaker-profiles", self.profilesURL.path,
                     "--session-result", self.sessionURL.path,
+                    "--avoid-overwrite",
                 ]
                 args.append(contentsOf: arguments)
+                args.append("--")
+                args.append(contentsOf: inputs.map(\.path))
                 try self.execute(self.pythonExecutable, args, token: token)
                 let speakers = self.readSessionSpeakers()
                 DispatchQueue.main.async {
                     self.detectedSpeakers = speakers
-                    self.finish("Готово", detail: "Файлы сохранены в выбранной папке")
+                    let detail = inputs.count == 1
+                        ? "Файлы сохранены в выбранной папке"
+                        : "Обработано файлов: \(inputs.count). Результаты сохранены в выбранной папке"
+                    self.finish("Готово", detail: detail)
                 }
             } catch {
                 let diagnostics = self.recordError(error)
@@ -624,6 +659,13 @@ print("Модели готовы")
                 DispatchQueue.main.async {
                     if self.cancelRequested {
                         self.finish("Остановлено")
+                    } else if self.batchCompletedFiles > 0 {
+                        self.errorDetails = diagnostics
+                        self.finish(
+                            "Готово не всё",
+                            detail: "Успешно: \(self.batchCompletedFiles), с ошибкой: \(self.batchFailedFiles)",
+                            error: true
+                        )
                     } else if !self.errorDetails.isEmpty {
                         self.finish(
                             self.status,
@@ -705,13 +747,14 @@ struct ContentView: View {
     @AppStorage("formatVTT") private var formatVTT = false
     @AppStorage("prompt") private var prompt = ""
     @State private var token = ""
-    @State private var inputURL: URL?
+    @State private var inputURLs: [URL] = []
     @State private var outputURL: URL?
     @State private var message = ""
     @State private var confirmClear = false
     @State private var showingErrorDetails = false
     @State private var speakerNames: [String: String] = [:]
     @State private var profilePendingDeletion: VoiceProfile?
+    @State private var isDropTarget = false
 
     private var selectedModel: String {
         switch modelProfile {
@@ -862,7 +905,19 @@ struct ContentView: View {
                                 .font(.system(.body, design: .monospaced))
                                 .foregroundStyle(.secondary)
                         }
-                        ProgressView(value: runtime.progress, total: 1)
+                        if runtime.batchTotalFiles > 1 {
+                            HStack(spacing: 6) {
+                                Text("Файл \(runtime.batchCurrentIndex) из \(runtime.batchTotalFiles)")
+                                    .fontWeight(.medium)
+                                Text("·")
+                                Text(runtime.batchCurrentName)
+                                    .lineLimit(1)
+                                    .truncationMode(.middle)
+                            }
+                            .font(.callout)
+                            .foregroundStyle(.secondary)
+                        }
+                        ProgressView(value: runtime.overallProgress, total: 1)
                             .progressViewStyle(.linear)
                         HStack(spacing: 12) {
                             Text(runtime.detail.isEmpty ? "Пожалуйста, подождите…" : runtime.detail)
@@ -910,23 +965,74 @@ struct ContentView: View {
                     )
                 }
 
-                AppCard("Запись", icon: "doc.badge.plus") {
-                    Button { chooseInput() } label: {
-                        HStack(spacing: 14) {
-                            Image(systemName: inputURL == nil ? "plus.circle.fill" : "waveform")
-                                .font(.title2).foregroundStyle(.indigo)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(inputURL?.lastPathComponent ?? "Выберите аудио или видео")
-                                    .font(.headline).foregroundStyle(.primary)
-                                Text(inputURL == nil ? "MP3, M4A, WAV, MP4 и другие форматы" : "Нажмите, чтобы выбрать другой файл")
-                                    .font(.caption).foregroundStyle(.secondary)
-                            }
-                            Spacer()
-                            Image(systemName: "chevron.right").foregroundStyle(.tertiary)
+                AppCard("Записи", icon: "doc.on.doc") {
+                    VStack(spacing: 12) {
+                        Image(systemName: inputURLs.isEmpty ? "arrow.down.doc.fill" : "plus.circle.fill")
+                            .font(.system(size: 30, weight: .medium))
+                            .foregroundStyle(.indigo)
+                        Text(inputURLs.isEmpty ? "Перетащите аудио или видео сюда" : "Добавьте ещё записи")
+                            .font(.headline)
+                        Text("Можно выбрать сразу несколько файлов")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Button(inputURLs.isEmpty ? "Выбрать файлы" : "Добавить файлы") {
+                            chooseInput()
                         }
-                        .padding(14)
-                        .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 14))
-                    }.buttonStyle(.plain)
+                        .buttonStyle(.borderedProminent)
+                        .disabled(runtime.running)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        (isDropTarget ? Color.indigo.opacity(0.16) : Color.primary.opacity(0.045)),
+                        in: RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    )
+                    .overlay {
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(
+                                isDropTarget ? Color.indigo : Color.primary.opacity(0.08),
+                                style: StrokeStyle(lineWidth: isDropTarget ? 2 : 1, dash: [7])
+                            )
+                    }
+                    .onDrop(of: [UTType.fileURL.identifier], isTargeted: $isDropTarget) { providers in
+                        acceptDroppedFiles(providers)
+                    }
+
+                    if !inputURLs.isEmpty {
+                        HStack {
+                            Text(filesCountTitle(inputURLs.count))
+                                .font(.callout.weight(.semibold))
+                            Spacer()
+                            Button("Очистить") { inputURLs.removeAll() }
+                                .buttonStyle(.borderless)
+                                .disabled(runtime.running)
+                        }
+
+                        VStack(spacing: 8) {
+                            ForEach(inputURLs, id: \.path) { url in
+                                HStack(spacing: 12) {
+                                    Image(systemName: "waveform")
+                                        .foregroundStyle(.indigo)
+                                    Text(url.lastPathComponent)
+                                        .lineLimit(1)
+                                        .truncationMode(.middle)
+                                    Spacer()
+                                    Button {
+                                        removeInput(url)
+                                    } label: {
+                                        Image(systemName: "xmark.circle.fill")
+                                            .foregroundStyle(.secondary)
+                                    }
+                                    .buttonStyle(.borderless)
+                                    .disabled(runtime.running)
+                                    .help("Убрать из очереди")
+                                }
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 9)
+                                .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
                 }
 
                 HStack(alignment: .top, spacing: 18) {
@@ -984,7 +1090,10 @@ struct ContentView: View {
                 }
 
                 if !runtime.detectedSpeakers.isEmpty {
-                    AppCard("Голоса в этой записи", icon: "person.wave.2") {
+                    AppCard(
+                        runtime.batchTotalFiles > 1 ? "Голоса в последней записи" : "Голоса в этой записи",
+                        icon: "person.wave.2"
+                    ) {
                         Text("Дайте участнику имя — в следующих записях приложение попробует узнать его автоматически.")
                             .font(.callout)
                             .foregroundStyle(.secondary)
@@ -1088,16 +1197,19 @@ struct ContentView: View {
                     }
                     Spacer()
                     Button {
-                        guard let inputURL, let outputURL else { return }
+                        guard !inputURLs.isEmpty, let outputURL else { return }
                         saveToken()
-                        runtime.transcribe(input: inputURL, output: outputURL, arguments: runArguments, token: token)
+                        runtime.transcribe(inputs: inputURLs, output: outputURL, arguments: runArguments, token: token)
                     } label: {
-                        Label("Создать расшифровку", systemImage: "sparkles")
+                        Label(
+                            inputURLs.count > 1 ? "Расшифровать \(inputURLs.count) файлов" : "Создать расшифровку",
+                            systemImage: "sparkles"
+                        )
                             .frame(minWidth: 190)
                     }
                     .buttonStyle(.borderedProminent)
                     .controlSize(.large)
-                    .disabled(runtime.running || inputURL == nil || outputURL == nil || !hasOutputFormat || (diarization && token.isEmpty))
+                    .disabled(runtime.running || inputURLs.isEmpty || outputURL == nil || !hasOutputFormat || (diarization && token.isEmpty))
                 }
             }.padding(24)
         }
@@ -1140,12 +1252,63 @@ struct ContentView: View {
         )
     }
 
+    private func filesCountTitle(_ count: Int) -> String {
+        let lastTwo = count % 100
+        let last = count % 10
+        let noun: String
+        if (11...14).contains(lastTwo) {
+            noun = "файлов"
+        } else if last == 1 {
+            noun = "файл"
+        } else if (2...4).contains(last) {
+            noun = "файла"
+        } else {
+            noun = "файлов"
+        }
+        return "Выбрано: \(count) \(noun)"
+    }
+
+    private func addInputs(_ urls: [URL]) {
+        var knownPaths = Set(inputURLs.map { $0.standardizedFileURL.path })
+        for url in urls {
+            let standardized = url.standardizedFileURL
+            var isDirectory: ObjCBool = false
+            guard standardized.isFileURL,
+                  FileManager.default.fileExists(
+                    atPath: standardized.path,
+                    isDirectory: &isDirectory
+                  ),
+                  !isDirectory.boolValue,
+                  knownPaths.insert(standardized.path).inserted else { continue }
+            inputURLs.append(standardized)
+        }
+    }
+
+    private func removeInput(_ url: URL) {
+        inputURLs.removeAll { $0.standardizedFileURL.path == url.standardizedFileURL.path }
+    }
+
+    private func acceptDroppedFiles(_ providers: [NSItemProvider]) -> Bool {
+        guard !runtime.running else { return false }
+        let matching = providers.filter {
+            $0.hasItemConformingToTypeIdentifier(UTType.fileURL.identifier)
+        }
+        for provider in matching {
+            provider.loadDataRepresentation(forTypeIdentifier: UTType.fileURL.identifier) { data, _ in
+                guard let data,
+                      let url = URL(dataRepresentation: data, relativeTo: nil) else { return }
+                DispatchQueue.main.async { addInputs([url]) }
+            }
+        }
+        return !matching.isEmpty
+    }
+
     private func chooseInput() {
         let panel = NSOpenPanel()
         panel.canChooseFiles = true
         panel.canChooseDirectories = false
-        panel.allowsMultipleSelection = false
-        if panel.runModal() == .OK { inputURL = panel.url }
+        panel.allowsMultipleSelection = true
+        if panel.runModal() == .OK { addInputs(panel.urls) }
     }
 
     private func chooseOutput() {

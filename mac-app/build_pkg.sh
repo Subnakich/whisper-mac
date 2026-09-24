@@ -39,8 +39,8 @@ COPYFILE_DISABLE=1 pkgbuild \
   --root "$PKG_ROOT" \
   --component-plist "$SCRIPT_DIR/Component.plist" \
   --identifier com.whispermac.pkg \
-  --version 0.2.0 \
+  --version 0.3.0 \
   --install-location / \
-  "$BUILD_DIR/WhisperMac-0.2.0.pkg"
+  "$BUILD_DIR/WhisperMac-0.3.0.pkg"
 
-echo "$BUILD_DIR/WhisperMac-0.2.0.pkg"
+echo "$BUILD_DIR/WhisperMac-0.3.0.pkg"

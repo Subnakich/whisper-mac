@@ -18,6 +18,7 @@
 - предварительная загрузка моделей в кэш;
 - выбор языка, prompt и форматов;
 - выбор входного файла и каталога результатов;
+- пакетный выбор и drag-and-drop нескольких записей;
 - просмотр и очистка кэша моделей.
 
 ## Сборка
@@ -31,7 +32,7 @@ chmod +x build_pkg.sh
 Результат:
 
 ```text
-mac-app/build/WhisperMac-0.2.0.pkg
+mac-app/build/WhisperMac-0.3.0.pkg
 ```
 
 Пакет имеет ad-hoc подпись для локального использования. Для распространения на другие Mac необходимы Apple Developer ID Application/Installer, hardened runtime и notarization.

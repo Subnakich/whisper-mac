@@ -684,6 +684,18 @@ def write_outputs(
     return written
 
 
+def available_output_base(output_base: Path, formats: set[str]) -> Path:
+    """Return a non-conflicting output name for batch processing."""
+    if not any(output_base.with_suffix(f".{name}").exists() for name in formats):
+        return output_base
+    index = 2
+    while True:
+        candidate = output_base.with_name(f"{output_base.name}-{index}")
+        if not any(candidate.with_suffix(f".{name}").exists() for name in formats):
+            return candidate
+        index += 1
+
+
 def process_file(
     source: Path,
     *,
@@ -701,6 +713,7 @@ def process_file(
     diarization_device: str = "auto",
     speaker_profiles: Path | None = None,
     session_result: Path | None = None,
+    avoid_overwrite: bool = False,
 ) -> list[Path]:
     if not source.is_file():
         raise RuntimeError(f"Файл не найден: {source}")
@@ -771,6 +784,8 @@ def process_file(
     report_progress("exporting", 0.95)
     target_dir = output_dir or source.parent
     output_base = target_dir / source.stem
+    if avoid_overwrite:
+        output_base = available_output_base(output_base, formats)
     metadata = {
         "source": str(source.resolve()),
         "language": result.get("language"),
