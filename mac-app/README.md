@@ -32,10 +32,10 @@ chmod +x build_pkg.sh
 Результат:
 
 ```text
-mac-app/build/WhisperMac-0.3.0.pkg
+mac-app/build/WhisperMac-0.3.1.pkg
 ```
 
-Пакет имеет ad-hoc подпись для локального использования. Для распространения на другие Mac необходимы Apple Developer ID Application/Installer, hardened runtime и notarization.
+Без переменных окружения пакет получает ad-hoc подпись для локального использования. Для распространения другим пользователям используйте Developer ID Application/Installer и нотариализацию по инструкции [SIGNING_RU.md](SIGNING_RU.md).
 
 ## Первый запуск
 
