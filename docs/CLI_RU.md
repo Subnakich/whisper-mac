@@ -1,11 +1,11 @@
 # Использование
 
-Пользовательская инструкция для `.pkg` и GUI находится в [mac-app/README.md](../mac-app/README.md).
+Пользовательская инструкция для `.pkg` и GUI находится в [USAGE_RU.md](USAGE_RU.md).
 
 Справка разработческого CLI:
 
 ```bash
-source .venv/bin/activate
+source cli/.venv/bin/activate
 whisper-mac --help
 ```
 

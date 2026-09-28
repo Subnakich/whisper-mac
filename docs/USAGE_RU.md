@@ -5,7 +5,7 @@
 Собранный установщик:
 
 ```text
-/Users/subnak/dev/whisper-gui/mac-app/build-fixed/WhisperMac-0.3.1.pkg
+/Users/subnak/dev/whisper-mac/build/WhisperMac-0.3.1.pkg
 ```
 
 Откройте `.pkg` двойным кликом и установите приложение. Оно появится здесь:

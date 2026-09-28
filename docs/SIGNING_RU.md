@@ -38,13 +38,13 @@ xcrun notarytool store-credentials whisper-mac-notary \
 ## 3. Собрать подписанный и нотариализованный пакет
 
 ```bash
-cd /Users/subnak/dev/whisper-gui/mac-app
+cd /Users/subnak/dev/whisper-mac
 
 APP_SIGN_IDENTITY="Developer ID Application: Имя или компания (TEAMID)" \
 PKG_SIGN_IDENTITY="Developer ID Installer: Имя или компания (TEAMID)" \
 NOTARY_PROFILE="whisper-mac-notary" \
 BUILD_DIR="$PWD/build-release" \
-./build_pkg.sh
+./scripts/build_pkg.sh
 ```
 
 Скрипт выполнит четыре операции:
@@ -77,8 +77,7 @@ spctl --assess --type install --verbose=2 \
 Обычная команда по-прежнему работает:
 
 ```bash
-BUILD_DIR="$PWD/build-fixed" ./build_pkg.sh
+BUILD_DIR="$PWD/build-local" ./scripts/build_pkg.sh
 ```
 
 Она создаёт ad-hoc подписанное приложение и неподписанный установщик. Это подходит для разработки, но на чужом Mac Gatekeeper может потребовать ручное подтверждение запуска.
-

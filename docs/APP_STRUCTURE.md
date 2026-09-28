@@ -1,12 +1,12 @@
-# Whisper Mac `.pkg`
+# Устройство приложения
 
-Нативное SwiftUI-приложение для Apple Silicon. Сам `.pkg` содержит только приложение и код пайплайна. Runtime и модели устанавливаются по запросу в:
+Whisper Mac состоит из небольшого нативного SwiftUI-приложения и Python-пайплайна, который упаковывается в ресурсы `.app`. Управляемый Python runtime и модели устанавливаются по запросу в:
 
 ```text
 ~/Library/Application Support/WhisperMac
 ```
 
-Подробная пользовательская инструкция: [USAGE_RU.md](USAGE_RU.md).
+Пользовательская инструкция: [USAGE_RU.md](USAGE_RU.md).
 
 Возможности:
 
@@ -21,18 +21,26 @@
 - пакетный выбор и drag-and-drop нескольких записей;
 - просмотр и очистка кэша моделей.
 
-## Сборка
+## Каталоги
+
+```text
+app/Sources/      интерфейс и управление runtime
+app/Resources/    иконка
+cli/src/          распознавание, диаризация и экспорт
+scripts/          сборка установщика и установка CLI
+```
+
+## Сборка `.pkg`
 
 ```bash
-cd /Users/subnak/dev/whisper-gui/mac-app
-chmod +x build_pkg.sh
-./build_pkg.sh
+cd /Users/subnak/dev/whisper-mac
+./scripts/build_pkg.sh
 ```
 
 Результат:
 
 ```text
-mac-app/build/WhisperMac-0.3.1.pkg
+build/WhisperMac-0.3.1.pkg
 ```
 
 Без переменных окружения пакет получает ad-hoc подпись для локального использования. Для распространения другим пользователям используйте Developer ID Application/Installer и нотариализацию по инструкции [SIGNING_RU.md](SIGNING_RU.md).
@@ -41,6 +49,6 @@ mac-app/build/WhisperMac-0.3.1.pkg
 
 1. Установить `.pkg`.
 2. Открыть `/Applications/Whisper Mac.app`.
-3. Нажать «Установить / обновить runtime».
+3. Нажать «Подготовить приложение».
 4. Ввести HF token и сохранить его в Keychain.
 5. Выбрать модель и нажать «Загрузить выбранные модели» либо сразу начать обработку.

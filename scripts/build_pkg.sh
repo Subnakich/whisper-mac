@@ -3,15 +3,18 @@ set -eu
 
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
 PROJECT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
-BUILD_DIR=${BUILD_DIR:-"$SCRIPT_DIR/build"}
+APP_SOURCE_DIR="$PROJECT_DIR/app"
+CLI_SOURCE_DIR="$PROJECT_DIR/cli"
+BUILD_DIR=${BUILD_DIR:-"$PROJECT_DIR/build"}
 APP_DIR="$BUILD_DIR/Whisper Mac.app"
 CONTENTS_DIR="$APP_DIR/Contents"
 PKG_ROOT="$BUILD_DIR/pkgroot"
-VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$SCRIPT_DIR/Info.plist")
+VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP_SOURCE_DIR/Info.plist")
 PKG_PATH="$BUILD_DIR/WhisperMac-$VERSION.pkg"
 APP_SIGN_IDENTITY=${APP_SIGN_IDENTITY:--}
 PKG_SIGN_IDENTITY=${PKG_SIGN_IDENTITY:-}
 NOTARY_PROFILE=${NOTARY_PROFILE:-}
+SDK_PATH=${SDK_PATH:-$(xcrun --sdk macosx --show-sdk-path)}
 
 rm -rf "$BUILD_DIR"
 mkdir -p "$CONTENTS_DIR/MacOS" "$CONTENTS_DIR/Resources/python" "$PKG_ROOT/Applications"
@@ -19,7 +22,7 @@ mkdir -p "$BUILD_DIR/module-cache"
 
 xcrun swiftc \
   -swift-version 5 \
-  -sdk /Library/Developer/CommandLineTools/SDKs/MacOSX15.4.sdk \
+  -sdk "$SDK_PATH" \
   -target arm64-apple-macosx13.0 \
   -module-cache-path "$BUILD_DIR/module-cache" \
   -O \
@@ -27,12 +30,12 @@ xcrun swiftc \
   -framework SwiftUI \
   -framework AppKit \
   -framework Security \
-  "$SCRIPT_DIR/Sources/WhisperMacApp.swift" \
+  "$APP_SOURCE_DIR/Sources/WhisperMacApp.swift" \
   -o "$CONTENTS_DIR/MacOS/WhisperMac"
 
-cp "$SCRIPT_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
-cp "$SCRIPT_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
-ditto --norsrc --noextattr "$PROJECT_DIR/mac-cli/src/whisper_mac_cli" "$CONTENTS_DIR/Resources/python/whisper_mac_cli"
+cp "$APP_SOURCE_DIR/Info.plist" "$CONTENTS_DIR/Info.plist"
+cp "$APP_SOURCE_DIR/Resources/AppIcon.icns" "$CONTENTS_DIR/Resources/AppIcon.icns"
+ditto --norsrc --noextattr "$CLI_SOURCE_DIR/src/whisper_mac_cli" "$CONTENTS_DIR/Resources/python/whisper_mac_cli"
 find "$CONTENTS_DIR/Resources/python" -type d -name __pycache__ -prune -exec rm -rf {} +
 find "$CONTENTS_DIR/Resources/python" -type f -name '*.pyc' -delete
 
@@ -53,7 +56,7 @@ find "$PKG_ROOT" -type f -name '._*' -delete
 if [ -n "$PKG_SIGN_IDENTITY" ]; then
   COPYFILE_DISABLE=1 pkgbuild \
     --root "$PKG_ROOT" \
-    --component-plist "$SCRIPT_DIR/Component.plist" \
+    --component-plist "$APP_SOURCE_DIR/Component.plist" \
     --identifier com.whispermac.pkg \
     --version "$VERSION" \
     --install-location / \
@@ -63,7 +66,7 @@ if [ -n "$PKG_SIGN_IDENTITY" ]; then
 else
   COPYFILE_DISABLE=1 pkgbuild \
     --root "$PKG_ROOT" \
-    --component-plist "$SCRIPT_DIR/Component.plist" \
+    --component-plist "$APP_SOURCE_DIR/Component.plist" \
     --identifier com.whispermac.pkg \
     --version "$VERSION" \
     --install-location / \

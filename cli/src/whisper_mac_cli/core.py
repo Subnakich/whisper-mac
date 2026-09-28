@@ -285,7 +285,7 @@ def transcribe_mlx(
                 "Metal недоступен в текущей сессии. Запускайте whisper-mac в обычном "
                 "Terminal.app/iTerm на Mac, не из headless или виртуализированной среды."
             ) from exc
-        raise RuntimeError("mlx-whisper не установлен; запустите ./install.sh") from exc
+        raise RuntimeError("mlx-whisper не установлен; запустите ./scripts/install_cli.sh") from exc
 
     options: dict[str, Any] = {
         "path_or_hf_repo": model,
@@ -443,7 +443,7 @@ def diarize(
     try:
         from pyannote.audio import Pipeline
     except ImportError as exc:
-        raise RuntimeError("pyannote.audio не установлен; запустите ./install.sh") from exc
+        raise RuntimeError("pyannote.audio не установлен; запустите ./scripts/install_cli.sh") from exc
 
     source_is_local = Path(model).expanduser().exists()
     if not token and not source_is_local:

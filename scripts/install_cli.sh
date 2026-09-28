@@ -1,7 +1,10 @@
 #!/bin/sh
 set -eu
 
-cd "$(dirname "$0")"
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname "$0")" && pwd)
+PROJECT_DIR=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+CLI_DIR="$PROJECT_DIR/cli"
+cd "$CLI_DIR"
 
 if [ "$(uname -s)" != "Darwin" ] || [ "$(uname -m)" != "arm64" ]; then
   echo "Эта утилита предназначена для macOS на Apple Silicon (arm64)." >&2
