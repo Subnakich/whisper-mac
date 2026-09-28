@@ -4,7 +4,7 @@
 
 # Whisper Mac
 
-Локальное приложение для расшифровки аудио и видео на Mac с Apple Silicon. Распознавание выполняет MLX Whisper, разделение участников — pyannote Community-1. Исходные записи не отправляются в облачный сервис распознавания.
+Локальное приложение для расшифровки аудио и видео на Mac с Apple Silicon. По умолчанию распознавание выполняет **OpenAI Whisper large-v3-turbo** в MLX-формате, разделение участников — **pyannote speaker-diarization-community-1**. Исходные записи не отправляются в облачный сервис распознавания.
 
 ## Возможности
 
@@ -41,6 +41,14 @@ open build/WhisperMac-0.3.1.pkg
 
 Модели и runtime загружаются не в `.app`, а в `~/Library/Application Support/WhisperMac`. Повторная установка приложения их не удаляет.
 
+## Используемые модели
+
+- **Распознавание:** [`mlx-community/whisper-large-v3-turbo`](https://huggingface.co/mlx-community/whisper-large-v3-turbo) — MLX-конверсия OpenAI Whisper large-v3-turbo; вариант «Точнее» использует [`mlx-community/whisper-large-v3-mlx`](https://huggingface.co/mlx-community/whisper-large-v3-mlx).
+- **Диаризация:** [`pyannote/speaker-diarization-community-1`](https://huggingface.co/pyannote/speaker-diarization-community-1) через `pyannote.audio`. Для загрузки пользователь принимает условия модели и вводит собственный Hugging Face read-token.
+- **Локальное выполнение:** [`mlx-whisper`](https://github.com/ml-explore/mlx-examples/tree/main/whisper) с ускорением Metal на Apple Silicon.
+
+Модели и зависимости не входят в репозиторий и установочный пакет: приложение загружает их по требованию в локальный кэш. Их собственные лицензии и условия перечислены в [уведомлениях о сторонних компонентах](THIRD_PARTY_NOTICES.md).
+
 ## Структура
 
 ```text
@@ -76,3 +84,7 @@ whisper-mac --help
 - [Устройство приложения](docs/APP_STRUCTURE.md)
 
 Локальная сборка получает ad-hoc подпись. Для распространения без предупреждений Gatekeeper нужны Developer ID Application, Developer ID Installer и нотариализация Apple.
+
+## Лицензия
+
+Оригинальный код и документация Whisper Mac, включая историю репозитория, распространяются по [Apache License 2.0](LICENSE), если в конкретном файле не указано иное. Сторонние библиотеки и модели сохраняют собственные лицензии и условия — см. [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
